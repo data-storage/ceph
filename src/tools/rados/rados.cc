@@ -1523,9 +1523,31 @@ static int rados_tool_common(const std::map < std::string, std::string > &opts,
       if (formatter)
         formatter->open_array_section("objects");
       try {
-	librados::NObjectIterator i = io_ctx.nobjects_begin();
+
+
+        // So, you want selection n of m selections
+        // if m == pg_num, then divide each PG into 1 and give each selection one pg
+        // worst case: divide each PG into m, give each selection one slice from all PGs
+        //
+
+        // I can give you a power of two buckets.  You tell me how many bits
+        // you want, and I'll give you a bitmask (i.e. range) for the PG number,
+        // plus a bitmask (starting at the high bits, i.e. a range) for the
+        // object hash.
+
+        // So if I have 16 PGs, and you ask me for 32 buckets, it's easy.
+        
+        // If you ask me for 24 buckets, I can actually still do a pretty
+        // efficient job by dividing each PG into three, dividing the PG
+        // population 8 ways, and giving each participant two 1/3s of a PG.
+
+        // 
+
+	librados::NObjectIterator i = io_ctx.nobjects_begin(0, 16);
 	librados::NObjectIterator i_end = io_ctx.nobjects_end();
+        int i_cnt = 0;
 	for (; i != i_end; ++i) {
+          i_cnt++;
 	  if (!formatter) {
 	    // Only include namespace in output when wildcard specified
 	    if (wildcard)
@@ -1543,6 +1565,7 @@ static int rados_tool_common(const std::map < std::string, std::string > &opts,
 	    formatter->close_section(); //object
 	  }
 	}
+        std::cerr << "got " << i_cnt << " entries" << std::endl;
       }
       catch (const std::runtime_error& e) {
 	cerr << e.what() << std::endl;
